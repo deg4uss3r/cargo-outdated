@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
@@ -532,17 +532,35 @@ impl<'tmp> TempProject<'tmp> {
                                             name
                                         ),
                                     };
-                                    let retained =
+                                    let mut retained =
                                         features_and_options(&summary).contains(feature.as_str());
+                                    
                                     if !retained {
-                                        self.warn(format!(
-                                            "Feature {} of package {} \
-                                             has been obsolete in version {}",
-                                            feature,
-                                            name,
-                                            summary.version()
-                                        ))
-                                        .unwrap();
+                                        let mut name_to_package: HashMap<&str, &str> = HashMap::new();
+
+                                        let deps: Vec<_> = summary
+                                            .dependencies()
+                                            .iter()
+                                            .collect();
+
+                                        for dependency in deps.iter() {
+                                            name_to_package.insert(dependency.name_in_toml().as_str(), dependency.package_name().as_str());
+                                        }
+
+                                        if name_to_package.contains_key(&feature.as_str()) {
+                                            if !features_and_options(&summary).contains(name_to_package[feature.as_str()]) {
+                                                self.warn(format!(
+                                                    "Feature {} of package {} \
+                                                     has been obsolete in version {}",
+                                                    feature,
+                                                    name,
+                                                    summary.version()
+                                                ))
+                                                .unwrap();
+                                            } else {
+                                                retained = true;
+                                            }
+                                        }
                                     }
                                     retained
                                 })
